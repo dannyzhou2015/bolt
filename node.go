@@ -40,7 +40,7 @@ func (n *node) minKeys() int {
 func (n *node) size() int {
 	sz, elsz := pageHeaderSize, n.pageElementSize()
 	for i := 0; i < len(n.inodes); i++ {
-		item := &n.inodes[i]
+		item := n.inodes[i]
 		sz += elsz + len(item.key) + len(item.value)
 	}
 	return sz
@@ -52,7 +52,7 @@ func (n *node) size() int {
 func (n *node) sizeLessThan(v int) bool {
 	sz, elsz := pageHeaderSize, n.pageElementSize()
 	for i := 0; i < len(n.inodes); i++ {
-		item := &n.inodes[i]
+		item := n.inodes[i]
 		sz += elsz + len(item.key) + len(item.value)
 		if sz >= v {
 			return false
@@ -128,11 +128,12 @@ func (n *node) put(oldKey, newKey, value []byte, pgid pgid, flags uint32) {
 	// Add capacity and shift nodes if we don't have an exact match and need to insert.
 	exact := (len(n.inodes) > 0 && index < len(n.inodes) && bytes.Equal(n.inodes[index].key, oldKey))
 	if !exact {
-		n.inodes = append(n.inodes, inode{})
+		n.inodes = append(n.inodes, nil)
 		copy(n.inodes[index+1:], n.inodes[index:])
+		n.inodes[index] = &inode{}
 	}
 
-	inode := &n.inodes[index]
+	inode := n.inodes[index]
 	inode.flags = flags
 	inode.key = newKey
 	inode.value = value
@@ -162,9 +163,12 @@ func (n *node) read(p *page) {
 	n.pgid = p.id
 	n.isLeaf = ((p.flags & leafPageFlag) != 0)
 	n.inodes = make(inodes, int(p.count))
+	for i := range n.inodes {
+		n.inodes[i] = &inode{}
+	}
 
 	for i := 0; i < int(p.count); i++ {
-		inode := &n.inodes[i]
+		inode := n.inodes[i]
 		if n.isLeaf {
 			elem := p.leafPageElement(uint16(i))
 			inode.flags = elem.flags
@@ -529,7 +533,7 @@ func (n *node) dereference() {
 	}
 
 	for i := range n.inodes {
-		inode := &n.inodes[i]
+		inode := n.inodes[i]
 
 		key := make([]byte, len(inode.key))
 		copy(key, inode.key)
@@ -587,9 +591,11 @@ func (n *node) dump() {
 
 type nodes []*node
 
-func (s nodes) Len() int           { return len(s) }
-func (s nodes) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s nodes) Less(i, j int) bool { return bytes.Compare(s[i].inodes[0].key, s[j].inodes[0].key) == -1 }
+func (s nodes) Len() int      { return len(s) }
+func (s nodes) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s nodes) Less(i, j int) bool {
+	return bytes.Compare(s[i].inodes[0].key, s[j].inodes[0].key) == -1
+}
 
 // inode represents an internal node inside of a node.
 // It can be used to point to elements in a page or point
@@ -601,4 +607,4 @@ type inode struct {
 	value []byte
 }
 
-type inodes []inode
+type inodes []*inode
