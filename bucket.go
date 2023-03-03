@@ -3,6 +3,7 @@ package bolt
 import (
 	"bytes"
 	"fmt"
+	"sync"
 	"unsafe"
 )
 
@@ -37,9 +38,10 @@ type Bucket struct {
 	*bucket
 	tx       *Tx                // the associated transaction
 	buckets  map[string]*Bucket // subbucket cache
-	page     *page              // inline page reference
-	rootNode *node              // materialized node for the root page.
-	nodes    map[pgid]*node     // node cache
+	lock     sync.Mutex
+	page     *page          // inline page reference
+	rootNode *node          // materialized node for the root page.
+	nodes    map[pgid]*node // node cache
 
 	// Sets the threshold for filling nodes when they split. By default,
 	// the bucket will fill to 50% but it can be useful to increase this
@@ -102,7 +104,10 @@ func (b *Bucket) Cursor() *Cursor {
 // The bucket instance is only valid for the lifetime of the transaction.
 func (b *Bucket) Bucket(name []byte) *Bucket {
 	if b.buckets != nil {
-		if child := b.buckets[string(name)]; child != nil {
+		b.lock.Lock()
+		child := b.buckets[string(name)]
+		b.lock.Unlock()
+		if child != nil {
 			return child
 		}
 	}
@@ -119,7 +124,9 @@ func (b *Bucket) Bucket(name []byte) *Bucket {
 	// Otherwise create a bucket and cache it.
 	var child = b.openBucket(v)
 	if b.buckets != nil {
+		b.lock.Lock()
 		b.buckets[string(name)] = child
+		b.lock.Unlock()
 	}
 
 	return child
