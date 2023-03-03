@@ -98,7 +98,7 @@ package main
 import (
 	"log"
 
-	"github.com/boltdb/bolt"
+	"github.com/dannyzhou2015/bolt"
 )
 
 func main() {
