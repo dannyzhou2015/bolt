@@ -38,7 +38,7 @@ type Bucket struct {
 	*bucket
 	tx       *Tx                // the associated transaction
 	buckets  map[string]*Bucket // subbucket cache
-	lock     sync.Mutex
+	lock     sync.RWMutex
 	page     *page          // inline page reference
 	rootNode *node          // materialized node for the root page.
 	nodes    map[pgid]*node // node cache
@@ -104,9 +104,9 @@ func (b *Bucket) Cursor() *Cursor {
 // The bucket instance is only valid for the lifetime of the transaction.
 func (b *Bucket) Bucket(name []byte) *Bucket {
 	if b.buckets != nil {
-		b.lock.Lock()
+		b.lock.RLock()
 		child := b.buckets[string(name)]
-		b.lock.Unlock()
+		b.lock.RUnlock()
 		if child != nil {
 			return child
 		}
